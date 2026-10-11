@@ -14,7 +14,7 @@ from ase.io import read, write
 from ase.optimize import QuasiNewton
 import ase
 
-from deepmd.calculator import DP
+from recnet_backend.calculator import DP
 
 from .context import WorkflowContext, MODEL
 

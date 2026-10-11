@@ -12,19 +12,21 @@ gate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(gate)
 
 
-def test_wheel_members_reject_missing_core_file():
+@pytest.mark.parametrize("missing", ["handlers/context.py", "recnet_backend/calculator.py",
+                                      "recnet_adapter/model_config.json"])
+def test_wheel_members_reject_missing_core_file(missing):
     names = gate.expected_members() | {"recnet-0.0.1.dist-info/METADATA"}
     gate.validate_wheel_members(names)
-    names.remove("handlers/context.py")
+    names.remove(missing)
     with pytest.raises(RuntimeError, match="Missing wheel members"):
         gate.validate_wheel_members(names)
 
 
-@pytest.mark.parametrize("payload", ["recnet_adapter/__init__.py",
-                                       "recnet_backend/__init__.py",
-                                       "network_builder/__init__.py",
-                                       "tools/prepare.py"])
+@pytest.mark.parametrize("payload", ["network_builder/__init__.py", "tools/prepare.py",
+                                       "recnet_adapter/tools/campaign.py",
+                                       "recnet_adapter/runtime_config.py",
+                                       "graph_generator.py", "evil.dist-info/METADATA"])
 def test_wheel_members_reject_noncore_payload(payload):
     names = gate.expected_members() | {"recnet-0.0.1.dist-info/METADATA", payload}
-    with pytest.raises(RuntimeError, match="Unexpected top-level wheel entries"):
+    with pytest.raises(RuntimeError, match="Unexpected wheel members"):
         gate.validate_wheel_members(names)

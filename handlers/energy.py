@@ -13,7 +13,7 @@ from ase.optimize import QuasiNewton
 from ase.vibrations import Vibrations
 from ase.thermochemistry import HarmonicThermo, IdealGasThermo
 
-from deepmd.calculator import DP
+from recnet_backend.calculator import DP
 
 from .context import WorkflowContext, MODEL
 from utils import config as cfgmod

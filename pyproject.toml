@@ -1,4 +1,4 @@
-# Recnet core 工程基线（core-only 候选；不含 fork 专属的 recnet_adapter / network_builder）。
+# Recnet core and explicit model-input candidate; builder and tools excluded.
 # 分发名与版本为占位：上游尚无分发元数据，PR 讨论时可再定。
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 name = "recnet"
 version = "0.0.1"
 readme = "README.md"
-description = "Recnet core: reaction-network transition-state workflow (handlers/ccqn/utils)"
+description = "Recnet reaction-network workflow with explicit model and head inputs"
 requires-python = ">=3.10"
 dependencies = ["ase", "numpy", "scipy", "PyYAML", "sella", "deepmd-kit[torch]>=3.2.0b1.dev67"]
 
@@ -22,7 +22,14 @@ py-modules = ["run_dp_ts", "slabsite"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["handlers", "ccqn", "ccqn.*", "utils"]
+include = ["handlers", "ccqn", "ccqn.*", "utils", "recnet_backend", "recnet_adapter"]
+
+[tool.setuptools.package-data]
+recnet_adapter = ["model_config.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["recnet_backend/tests", "recnet_adapter/tests", "scripts/tests"]
+addopts = "-ra"
 
 [tool.ruff]
 target-version = "py310"

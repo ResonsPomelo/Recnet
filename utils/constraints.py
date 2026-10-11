@@ -2,7 +2,7 @@ import numpy as np
 from ase.constraints import FixAtoms, FixInternals
 from ase.calculators import calculator
 from ase.geometry import get_distances
-from deepmd.calculator import DP
+from recnet_backend.calculator import DP
 
 
 def get_energy_forces_atom_bond(atoms, ind1, ind2, k, deq):

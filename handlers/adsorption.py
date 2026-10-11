@@ -8,7 +8,7 @@ from ase.io import read, write
 from ase.optimize import MDMin, QuasiNewton
 import ase
 
-from deepmd.calculator import DP
+from recnet_backend.calculator import DP
 from .context import WorkflowContext, MODEL
 from utils import constraints as constraint_utils
 

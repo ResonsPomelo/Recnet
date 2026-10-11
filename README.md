@@ -1,54 +1,83 @@
-# Recnet core engineering candidate
+# Recnet model-input engineering candidate
 
-This branch packages the existing upstream scientific core after the handlers
-import fix. It contains `handlers`, `ccqn`, `utils`, `run_dp_ts` and `slabsite`.
-It does not contain the fork's adapter, neutral backend, network builder,
-campaign tools, private checkpoints, SAI scripts or run evidence.
+This candidate packages the upstream reaction-network core with a neutral model
+boundary (`recnet_backend`) and a small CLI adapter (`recnet_adapter`). Its
+scientific workflow remains the core from the PR-1 import fix. It contains no
+network builder, campaign tools, SAI workflow, private checkpoints, or run
+evidence. The distribution name `recnet` and version `0.0.1` are provisional
+review metadata and are not a published release.
 
-The distribution name `recnet` and version `0.0.1` are provisional review
-metadata, not a published release. This candidate is based on local upstream
-commit `97b9772` plus import fix `f7b102a`; it does not claim to track current
-remote upstream.
+## Install and check
 
-## Install and inspect
-
-Use a separate environment with the appropriate scientific dependencies:
+Use an environment with the scientific dependencies selected for your work:
 
 ```bash
 python -m pip install -e '.[dev]'
+make check PYTHON=python PIPELINE_PYTHON=python
 python -m run_dp_ts --help
-make check PYTHON=python
+python -m recnet_adapter --help
 ```
 
-The base installation declares ASE, NumPy, SciPy, PyYAML, Sella and DeepMD's
-PyTorch support because importing the core workflow loads those modules.
-The `core` and `pipeline` extras remain accepted as empty compatibility aliases.
-The `dev` extra supplies local quality tools.
-Build/install probes additionally need pip, setuptools and wheel.
+Base installation declares ASE, NumPy, SciPy, PyYAML, Sella, and DeepMD's
+PyTorch backend because the workflow imports them. `core` and `pipeline` are
+empty compatibility extras. The `dev` extra provides pytest
+and ruff. Build/install probes additionally need pip, setuptools, and wheel.
 
-`make check` runs correctness lint, negative tests for the wheel allowlist,
-and wheel/editable installation probes.
-The probes reuse the selected interpreter's dependency directories in private
-venvs, verify actual dependency and package import locations, and check the
-installed CLI help from outside the source directory. They do not execute
-parent editable hooks or install into the original environment. To use another
-pipeline interpreter, set `PIPELINE_PYTHON=/absolute/path/to/python`; the first
-`PYTHON` must also have pipeline dependencies for its wheel/editable probes.
+`make check` runs correctness lint, model-boundary and package-boundary tests, and actual wheel and
+editable installation probes. The model tests use tiny synthetic CPU DeepMD
+checkpoints to compare energy and forces against the native calculator; they
+do not run a reaction search. The install probes run outside the source tree,
+verify package origins and compatibility import aliases, and check CLI help
+and missing-model rejection without creating outputs. They use isolated
+venvs with third-party packages from the selected interpreter and clear model
+selection variables only in probe subprocesses.
 
-## Scope and compatibility
+## Model and head inputs
 
-This is a packaging candidate: scientific source files are unchanged relative
-to PR-1. The inherited core still has its historical hard-coded model setting
-in `handlers/context.py`. This branch does not implement the fork's explicit
-model/head contract and must not replace its production deployment on its own.
-The separate backend/adapter change must carry that contract when integrating
-the fork workflow.
+The workflow requires a model path from `--model`, `RECNET_DP_MODEL`, or an
+explicitly selected JSON file. Select a project JSON with `--project-config`
+or `RECNET_PROJECT_CONFIG`; `RECNET_MODEL_CONFIG` selects a model-only JSON.
+An example project file is:
 
-Legacy `prepare_rmg_data.py` and `graph_generator.py` require additional RMG
-preparation dependencies and remain source-only utilities. They are not part
-of the installed core surface. No new console-script name is introduced.
+```json
+{
+  "root": "/path/to/workspace",
+  "model": "models/example.pt",
+  "head": "science"
+}
+```
 
-Installed imports and help are engineering smoke tests, not GPU inference,
-transition-state convergence or scientific-result validation. Do not co-install
-this distribution with the monolithic `recnet-ft2dp-adapter` fork distribution:
-they contain overlapping Python modules. Test each candidate in isolation.
+Relative model paths in a project file resolve from its `root`; if `root` is
+omitted, the project file's directory is used. A model-only JSON resolves
+relative paths from its own directory. The packaged `model_config.json` has
+no model or head selection. The repository contains no default project
+checkpoint, head, or FT2DP/S/M assignment.
+
+```bash
+python -m run_dp_ts --model /path/to/model.pt --head science \
+  --path /path/to/case --slab /path/to/slab --prepared /path/to/prepared.yaml
+python -m recnet_adapter run --model /path/to/model.pt --head science \
+  --path /path/to/case --slab /path/to/slab --prepared /path/to/prepared.yaml
+```
+
+For a multi-head model, `--head` must name a branch or alias. Even the
+`Default` branch must be selected explicitly. `none` clears the selection and
+is rejected for a multi-head model. A single-head model follows DeepMD's
+native invocation without injecting a head. The same contract applies to
+`HarmonicallyForcedDP` and to direct calls through `recnet_backend.calculator.DP`.
+The legacy `recnet_adapter/run_dp_ts_ft2dp.py` path remains an entrypoint name;
+it does not select an FT2DP model or head.
+
+## Scope
+
+Only the five core DP imports, `handlers/context.py` model constant, and
+`run_dp_ts.py` entrypoint change in the scientific core. TS seed, gate,
+surface, and campaign behavior from the research fork are outside this
+candidate. Legacy `prepare_rmg_data.py` and `graph_generator.py` require
+additional RMG dependencies and remain source-only utilities. No new console
+script is introduced.
+
+Do not co-install this distribution with the monolithic
+`recnet-ft2dp-adapter` fork distribution: they contain overlapping modules.
+Installed imports and CPU model parity do not establish GPU inference,
+transition-state convergence, or scientific-result validity.

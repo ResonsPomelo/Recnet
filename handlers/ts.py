@@ -13,7 +13,7 @@ from ase.io import read, write
 from ase.optimize import MDMin, QuasiNewton
 from ase.vibrations import Vibrations
 from sella import Sella
-from deepmd.calculator import DP
+from recnet_backend.calculator import DP
 from ccqn import CCQN
 
 from .context import WorkflowContext, MODEL

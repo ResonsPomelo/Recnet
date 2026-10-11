@@ -18,7 +18,7 @@ from slabsite import SlabSite
 from utils import config as cfgmod
 from utils import geometry as geom
 
-MODEL = "/data/home/youyinglong/model/dpa230-v2-simp/FeCHO-dpa231-v2-7-3heads-100w.pth"
+MODEL = None  # Explicitly configured by the caller; no project default.
 
 
 class WorkflowContext:

@@ -1,0 +1,5 @@
+{
+  "model": null,
+  "head": null,
+  "_readme": "Supply model and (for multi-head models) head explicitly via arguments, RECNET_DP_MODEL/RECNET_DP_HEAD, or a selected external config. No built-in model."
+}

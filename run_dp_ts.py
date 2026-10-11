@@ -7,12 +7,20 @@ Delegates to the WorkflowContext + handler modules under utils/.
 import argparse
 
 from utils import config as cfgmod
-from handlers import DPWorkflow
 
 
 if __name__ == "__main__":
     parser = cfgmod.build_arg_parser()
+    parser.add_argument("--model", help="Model checkpoint (or RECNET_DP_MODEL)")
+    parser.add_argument("--head", help="Explicit branch for a multi-head model")
+    parser.add_argument("--project-config", help="Explicit project JSON configuration")
     args = parser.parse_args()
+    from recnet_adapter import AdapterError, install
+    try:
+        install(model=args.model, head=args.head, project_config=args.project_config)
+    except AdapterError as exc:
+        parser.error(str(exc))
+    from handlers import DPWorkflow
     cfg = cfgmod.config_from_args(args)
     slab_entries = cfgmod.resolve_slab_paths_for_workflow(cfg)
 

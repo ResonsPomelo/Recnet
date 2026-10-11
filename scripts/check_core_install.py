@@ -1,8 +1,7 @@
-"""Core-only wheel/editable install gate (no adapter/builder assumptions).
+"""Core and explicit model-input wheel/editable installation gate.
 
-Builds the wheel from this worktree, asserts every source member of the core
-packages/modules is shipped and that the wheel's top-level entries are exactly
-the allowlisted core ones (no fork payloads, no historical scripts), then
+Builds the wheel from this worktree, asserts every supported source member is
+shipped and that the wheel excludes builder, tools and historical scripts, then
 probes wheel and editable installs in throwaway venvs. Dependency directories
 come from the selected interpreter, without executing parent editable hooks.
 This checks installed package behavior, not fresh dependency resolution or
@@ -21,17 +20,22 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
-PACKAGES = ("handlers", "ccqn", "utils")
+PACKAGES = ("handlers", "ccqn", "utils", "recnet_backend", "recnet_adapter")
 PY_MODULES = ("run_dp_ts.py", "slabsite.py")
-ALLOWED_TOP_LEVEL = set(PACKAGES) | set(PY_MODULES)
+PACKAGE_DATA = {"recnet_adapter/model_config.json"}
+EXCLUDED_PARTS = {"tests", "tools", "sai", "evidence", "__pycache__"}
+EXCLUDED_FILES = {"recnet_adapter/runtime_config.py"}  # introduced with tool consumers
+DIST_INFO = "recnet-0.0.1.dist-info/"
 
 
 def expected_members() -> set[str]:
     """Source-tree ground truth for the wheel member set (core only)."""
-    members: set[str] = set()
+    members: set[str] = set(PACKAGE_DATA)
     for package in PACKAGES:
         for path in sorted((ROOT / package).rglob("*.py")):
-            members.add(path.relative_to(ROOT).as_posix())
+            relative = path.relative_to(ROOT)
+            if not EXCLUDED_PARTS.intersection(relative.parts) and relative.as_posix() not in EXCLUDED_FILES:
+                members.add(relative.as_posix())
     for module in PY_MODULES:
         if (ROOT / module).is_file():
             members.add(module)
@@ -39,17 +43,14 @@ def expected_members() -> set[str]:
 
 
 def validate_wheel_members(names: set[str]) -> None:
-    """Reject a missing core file or any package outside the core allowlist."""
-    missing = expected_members() - names
+    """Reject missing source files and any non-metadata payload not in scope."""
+    expected = expected_members()
+    missing = expected - names
     if missing:
         raise RuntimeError(f"Missing wheel members: {sorted(missing)}")
-    top_level = {name.split("/", 1)[0] for name in names}
-    unexpected = sorted(
-        entry for entry in top_level
-        if entry not in ALLOWED_TOP_LEVEL and not entry.endswith(".dist-info")
-    )
+    unexpected = sorted(name for name in names if name not in expected and not name.startswith(DIST_INFO))
     if unexpected:
-        raise RuntimeError(f"Unexpected top-level wheel entries: {unexpected}")
+        raise RuntimeError(f"Unexpected wheel members: {unexpected}")
 
 
 def run(command, cwd, env):
@@ -94,13 +95,16 @@ def main() -> int:
     env = dict(os.environ)
     for key in ("PYTHONPATH", "PYTHONHOME", "DISPLAY"):
         env.pop(key, None)
+    for key in list(env):
+        if key.startswith("RECNET_"):
+            env.pop(key)
     env.update(
         PYTHONDONTWRITEBYTECODE="1",
         PYTHONNOUSERSITE="1",
         MPLBACKEND="Agg",
         PIP_DISABLE_PIP_VERSION_CHECK="1",
     )
-    with tempfile.TemporaryDirectory(prefix="recnet-core-install-") as directory:
+    with tempfile.TemporaryDirectory(prefix="recnet-model-install-") as directory:
         scratch = Path(directory)
         wheel_dir = scratch / "wheels"
         run(
@@ -148,22 +152,37 @@ def main() -> int:
             probe = (
                 "from pathlib import Path; "
                 "import importlib.metadata as metadata; "
-                "import sys; import handlers, ccqn, utils, slabsite; "
-                "assert not any(n.split('.')[0] in {'recnet_adapter', 'recnet_backend', 'network_builder'} for n in sys.modules); "
+                "import sys; import handlers, ccqn, utils, slabsite, recnet_adapter, recnet_backend; "
+                "import recnet_adapter.calculator as ac, recnet_adapter.model_selection as am; "
+                "import recnet_backend.calculator as bc, recnet_backend.model_selection as bm; "
+                "assert ac is bc and am is bm; "
+                "assert recnet_adapter.AdapterError is recnet_backend.AdapterError; "
+                "assert not any(n.split('.')[0] == 'network_builder' for n in sys.modules); "
                 f"root=Path({str(expected)!r}).resolve(); "
                 "assert all(Path(mod.__file__).resolve().is_relative_to(root) "
-                "for mod in (handlers, ccqn, utils, slabsite)); "
+                "for mod in (handlers, ccqn, utils, slabsite, recnet_adapter, recnet_backend)); "
+                "assert recnet_adapter.CONFIG_PATH.is_file(); "
+                "assert recnet_adapter.resolve().model is None; "
                 "assert metadata.version('recnet') == '0.0.1'; "
-                "print('PASS core installed paths and version')"
+                "print('PASS installed paths, aliases, and no implicit model')"
             )
             run([python, "-c", probe], scratch, env)
             help_dir = scratch / f"help-{mode}"
             help_dir.mkdir()
-            result = subprocess.run([str(python), "-m", "run_dp_ts", "--help"],
-                                    cwd=help_dir, env=env, capture_output=True, text=True, timeout=60)
-            if result.returncode or "usage:" not in result.stdout.lower() or list(help_dir.iterdir()):
-                raise RuntimeError(f"Installed CLI help failed: {result.stdout} {result.stderr}")
-            print(f"PASS {mode} installed CLI help without outputs", flush=True)
+            for command in (["-m", "run_dp_ts", "--help"],
+                            ["-m", "recnet_adapter", "--help"],
+                            ["-m", "recnet_adapter", "run", "--help"]):
+                result = subprocess.run([str(python), *command], cwd=help_dir,
+                                        env=env, capture_output=True, text=True, timeout=60)
+                if result.returncode or "usage:" not in result.stdout.lower() or list(help_dir.iterdir()):
+                    raise RuntimeError(f"Installed CLI help failed: {command} {result.stdout} {result.stderr}")
+            missing_model = subprocess.run([str(python), "-m", "run_dp_ts"], cwd=help_dir,
+                                           env=env, capture_output=True, text=True, timeout=60)
+            if (missing_model.returncode != 2
+                    or not any(word in missing_model.stderr.lower() for word in ("model", "模型"))
+                    or list(help_dir.iterdir())):
+                raise RuntimeError(f"Installed CLI accepted missing model: {missing_model.stdout} {missing_model.stderr}")
+            print(f"PASS {mode} installed CLI help and missing-model rejection without outputs", flush=True)
 
         if args.pipeline_python:
             venv = scratch / "pipeline"
@@ -172,14 +191,14 @@ def main() -> int:
             run([python, "-m", "pip", "install", "--ignore-installed", "--no-deps", "--no-index", wheel], scratch, env)
             probe = (
                 "from pathlib import Path; "
-                "import handlers, ccqn, utils, slabsite, run_dp_ts; "
+                "import handlers, ccqn, utils, slabsite, run_dp_ts, recnet_adapter, recnet_backend; "
                 f"root=Path({str(venv)!r}).resolve(); "
                 "assert all(Path(mod.__file__).resolve().is_relative_to(root) "
-                "for mod in (handlers, ccqn, utils, slabsite, run_dp_ts)); "
+                "for mod in (handlers, ccqn, utils, slabsite, run_dp_ts, recnet_adapter, recnet_backend)); "
                 "print('PASS pipeline imports (no model execution)')"
             )
             run([python, "-c", probe], scratch, env)
-    print("PASS core package smoke")
+    print("PASS core/model-input package smoke")
     return 0
 
 
