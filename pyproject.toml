@@ -20,6 +20,7 @@ dev = ["pytest>=7", "ruff>=0.9"]
 
 [tool.setuptools]
 py-modules = ["run_dp_ts", "slabsite"]
+include-package-data = false
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -2,7 +2,8 @@
 
 This candidate packages the upstream reaction-network core with a neutral model
 boundary (`recnet_backend`) and a small CLI adapter (`recnet_adapter`). Its
-scientific workflow remains the core from the PR-1 import fix. It also includes
+scientific workflow includes explicit GUI opt-in, per-site TS seed input,
+bond-projection gate overrides and dissociated-site TS backups. It also includes
 the validated `network_builder` tree. It contains no campaign tools, SAI workflow, private checkpoints, or run
 evidence. The distribution name `recnet` and version `0.0.1` are provisional
 review metadata and are not a published release.
@@ -25,7 +26,8 @@ empty compatibility extras. The `dev` extra provides pytest
 and ruff. Build/install probes additionally need pip, setuptools, and wheel.
 The `builder` extra adds RDKit; ASE, NumPy and PyYAML are base dependencies.
 
-`make check` runs correctness lint, model-boundary, builder and package-boundary tests, and actual wheel and
+`make check` runs correctness lint, model-boundary, scientific workflow, builder
+and package-boundary tests, plus actual wheel and
 editable installation probes. The model tests use tiny synthetic CPU DeepMD
 checkpoints to compare energy and forces against the native calculator; they
 do not run a reaction search. The install probes run outside the source tree,
@@ -72,9 +74,10 @@ it does not select an FT2DP model or head.
 
 ## Scope
 
-Only the five core DP imports, `handlers/context.py` model constant, and
-`run_dp_ts.py` entrypoint change in the scientific core. TS seed, gate,
-surface, and campaign behavior from the research fork are outside this
+The scientific changes add explicit viewer opt-in, deterministic TS seed
+selection with normalized cell constraints, a caller-selected bond-projection
+gate, and a fallback path from dissociated adsorption sites into TS search.
+Campaign tools, SAI deployment and historical run data remain outside this
 candidate. Legacy `prepare_rmg_data.py` and `graph_generator.py` require
 additional RMG dependencies and remain source-only utilities. No new console
 script is introduced.

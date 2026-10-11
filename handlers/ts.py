@@ -124,6 +124,7 @@ def generate_rxn_ts_guesses_ccqn(ctx: WorkflowContext):
                 )
                 d = distances[rec_bond[0], rec_bond[1]]
                 msg_header = f"distance between broken bond atoms before adjustment: {d:.2f} Å\n"
+                rec_bond_global = (rec_bond[0] + len(myslab), rec_bond[1] + len(myslab))
 
                 atom_bond_params_list = [{
                     "ind1": rec_bond[0] + len(myslab),
@@ -132,50 +133,86 @@ def generate_rxn_ts_guesses_ccqn(ctx: WorkflowContext):
                     "deq": 1.1 * d,
                 }]
 
-                # Pre-orient broken-bond torsion
-                torsion_info = _orient_broken_bond_torsion(
-                    ctx, stru_seed, rec_bond=rec_bond,
-                    ads_indices=template["ad_idx"],
+                # 可选 per-site seed 覆写（默认启用）：命中则 seed 即初始 TS guess 结构
+                seed_atoms, seed_path, seed_reason = ctx.load_ts_seed(
+                    rxn_key, site, assembly_reference=myslab + stru_seed,
                 )
+                seed_used = seed_atoms is not None
+
                 msg_seed = msg_header
-                if torsion_info:
-                    torsion_ok, torsion_atom_idx, torsion_angle = torsion_info
-                    if torsion_ok:
-                        msg_seed += f"pre-rotated broken-bond torsion: atom {torsion_atom_idx} by {torsion_angle:.1f} deg\n"
-
-                # Inner-angle adjustment
-                angle_before, angle_rot = geom.rotate_about_ads_inner_angle(
-                    stru_seed, rec_bond=rec_bond,
-                    ads_indices=template["ad_idx"],
-                    target_min_angle_deg=50.0,
-                    surface_normal=ctx.surface_normal,
-                )
-                if angle_rot > 0.0:
-                    msg_seed += (
-                        f"rotated around ads atom by inner-angle rule: "
-                        f"{angle_before:.2f}° -> >= 50.00°, applied {angle_rot:.2f}°\n"
-                    )
-
-                # Azimuth enumeration
                 azimuth_candidates = [0.0]
-                if ctx.enable_rotation_enum_ts:
-                    site_bond_params_tmp, center_bond_params_tmp = ctx._build_site_and_center_anchors(
-                        template, pos, len(myslab)
+
+                if seed_used:
+                    # seed 覆写：不做 torsion/内角调整/方位角枚举，也不做平移抬升；
+                    # 断键弹簧的目标距离改为 seed 自身的断键距离（否则预弛豫会把
+                    # seed 的拉伸几何拉回类反应物构型，覆写失去意义）。
+                    # Use the same cell/PBC as the actual constrained optimizer.
+                    seed_atoms = seed_atoms.copy()
+                    seed_atoms.set_cell(myslab.get_cell())
+                    seed_atoms.set_pbc(myslab.pbc)
+                    _, seed_distances = get_distances(
+                        seed_atoms.get_positions(), None, seed_atoms.get_cell(), seed_atoms.pbc
                     )
-                    _, best_angle, best_energy = _enumerate_azimuth_orientation(
-                        ctx, base_stru=stru_seed.copy(),
-                        ads_idx=template["ad_idx"], myslab=myslab, pos=pos,
-                        site_bond_params_list=site_bond_params_tmp,
-                        center_bond_params_list=center_bond_params_tmp,
-                        atom_bond_params_list=atom_bond_params_list,
+                    atom_bond_params_list[0]["deq"] = float(
+                        seed_distances[rec_bond_global[0], rec_bond_global[1]]
                     )
-                    azimuth_candidates = [float(best_angle)] + [
-                        float(a) for a in ctx.rotation_angle_candidates if float(a) != float(best_angle)
-                    ]
-                    if best_energy is not None:
-                        msg_seed += f"azimuth enumeration selected initial angle {best_angle:.1f}° with E={best_energy:.6f} eV\n"
-                    else:
-                        msg_seed += "azimuth enumeration failed; start from default angle 0°\n"
+                    msg_seed += f"seed override: {seed_path}\n"
+                    msg_seed += (
+                        f"seed override keeps reactive-bond restraint at the seed distance "
+                        f"{atom_bond_params_list[0]['deq']:.2f} Å\n"
+                    )
+                    msg_seed += "seed override is the initial TS guess; azimuth enumeration skipped (0° only)\n"
+                else:
+                    if seed_path is not None:
+                        # 命中 seed 但不可用：打印原因并回退默认 guess（不静默）
+                        msg_seed += f"seed override rejected: {seed_path} ({seed_reason}); use default guess\n"
+                        print(
+                            f"seed override rejected for {ts_stem}: {seed_path} "
+                            f"({seed_reason}); fall back to default guess"
+                        )
+
+                    # Pre-orient broken-bond torsion
+                    torsion_info = _orient_broken_bond_torsion(
+                        ctx, stru_seed, rec_bond=rec_bond,
+                        ads_indices=template["ad_idx"],
+                    )
+                    if torsion_info:
+                        torsion_ok, torsion_atom_idx, torsion_angle = torsion_info
+                        if torsion_ok:
+                            msg_seed += f"pre-rotated broken-bond torsion: atom {torsion_atom_idx} by {torsion_angle:.1f} deg\n"
+
+                    # Inner-angle adjustment
+                    angle_before, angle_rot = geom.rotate_about_ads_inner_angle(
+                        stru_seed, rec_bond=rec_bond,
+                        ads_indices=template["ad_idx"],
+                        target_min_angle_deg=50.0,
+                        surface_normal=ctx.surface_normal,
+                    )
+                    if angle_rot > 0.0:
+                        msg_seed += (
+                            f"rotated around ads atom by inner-angle rule: "
+                            f"{angle_before:.2f}° -> >= 50.00°, applied {angle_rot:.2f}°\n"
+                        )
+
+                    # Azimuth enumeration
+                    if ctx.enable_rotation_enum_ts:
+                        site_bond_params_tmp, center_bond_params_tmp = ctx._build_site_and_center_anchors(
+                            template, pos, len(myslab)
+                        )
+                        _, best_angle, best_energy = _enumerate_azimuth_orientation(
+                            ctx, base_stru=stru_seed.copy(),
+                            ads_idx=template["ad_idx"], myslab=myslab, pos=pos,
+                            site_bond_params_list=site_bond_params_tmp,
+                            center_bond_params_list=center_bond_params_tmp,
+                            atom_bond_params_list=atom_bond_params_list,
+                        )
+                        azimuth_candidates = [float(best_angle)] + [
+                            float(a) for a in ctx.rotation_angle_candidates if float(a) != float(best_angle)
+                        ]
+                        if best_energy is not None:
+                            msg_seed += f"azimuth enumeration selected initial angle {best_angle:.1f}° with E={best_energy:.6f} eV\n"
+                        else:
+                            msg_seed += "azimuth enumeration failed; start from default angle 0°\n"
 
                 accepted = False
                 attempt_messages = []
@@ -183,20 +220,32 @@ def generate_rxn_ts_guesses_ccqn(ctx: WorkflowContext):
                 for attempt_idx, az_angle in enumerate(azimuth_candidates, start=1):
                     attempt_msg = msg_seed
                     attempt_msg += f"Attempt {attempt_idx}/{len(azimuth_candidates)}: azimuth={az_angle:.1f}°\n"
+                    attempt_msg += (
+                        "TS primary-mode min bond projection threshold: "
+                        f"{ctx.ts_primary_mode_min_bond_proj!r}\n"
+                    )
 
                     site_bond_params_list, center_bond_params_list = ctx._build_site_and_center_anchors(
                         template, pos, len(myslab)
                     )
 
-                    stru = stru_seed.copy()
-                    if abs(float(az_angle)) > 1e-8:
-                        geom.rotate_about_ads_vertical(
-                            stru=stru, ads_idx=template["ad_idx"],
-                            angle_deg=float(az_angle), surface_normal=ctx.surface_normal,
-                        )
+                    if seed_used:
+                        # seed 已是完整组装结构：单元格/pbc 归一到本次运行的 slab，直接作为初始 guess
+                        ads = seed_atoms.copy()
+                        ads.set_cell(myslab.get_cell())
+                        ads.set_pbc(myslab.pbc)
+                        stru = ads[len(myslab):]
+                    else:
+                        stru = stru_seed.copy()
+                        if abs(float(az_angle)) > 1e-8:
+                            geom.rotate_about_ads_vertical(
+                                stru=stru, ads_idx=template["ad_idx"],
+                                angle_deg=float(az_angle), surface_normal=ctx.surface_normal,
+                            )
 
-                    stru.translate(np.array(pos, dtype=float) + ctx._site_lift_vector())
-                    ads = myslab + stru
+                        stru.translate(np.array(pos, dtype=float) + ctx._site_lift_vector())
+                        ads = myslab + stru
+
                     write(ts_guess_xyz, ads)
 
                     endpoint_anchor_added = _add_reactive_endpoint_site_anchor(

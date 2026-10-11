@@ -27,6 +27,9 @@ class AdsorptionHandler:
 
         ctx.valid_sites = {}
         ctx.valid_sites_all = {}
+        # Dissociated relaxations have incomparable adsorption energies, but
+        # can still provide backup sites for a bond-scission TS search.
+        ctx.dissociated_sites = {}
 
         def _opt(path, prefix, site_bond_params_list, atom_bond_params_list=None,
                  surf_atom_num=0, constraints_in=None, center_bond_params_list=None):
@@ -108,6 +111,7 @@ class AdsorptionHandler:
                         intact, reason = ctx._is_adsorbate_structure_intact(opt_xyz, sp_id)
                         if not intact:
                             print(f"Reject site {site} for {sp_id}: dissociated adsorbate after opt ({reason})")
+                            ctx.dissociated_sites.setdefault(sp_id, []).append(site)
                             e_site = None
                         else:
                             opt_atoms = read(opt_xyz)
@@ -135,7 +139,11 @@ class AdsorptionHandler:
             rxn["valid_product_sites"] = []
             for sp_id in rxn["reactant_species"]:
                 rxn["valid_reactant_sites"] = ctx.valid_sites.get(sp_id, slab.unique_sites["idx"])
-                rxn["valid_reactant_sites_all"] = ctx.valid_sites_all.get(sp_id, slab.unique_sites["idx"])
+                base_sites = list(ctx.valid_sites_all.get(sp_id, slab.unique_sites["idx"]))
+                for site in ctx.dissociated_sites.get(sp_id, []):
+                    if site not in base_sites:
+                        base_sites.append(site)
+                rxn["valid_reactant_sites_all"] = base_sites
             for sp_id in rxn["product_species"]:
                 rxn["valid_product_sites"] = ctx.valid_sites.get(sp_id, slab.unique_sites["idx"])
 

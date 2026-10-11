@@ -41,6 +41,7 @@ if __name__ == "__main__":
             top_x=cfg.top_x,
             enable_rotation_enum_ads=cfg.enum_ads,
             enable_rotation_enum_ts=cfg.enum_ts,
+            enable_ts_seed=cfg.ts_seed,
             surface_normal=cfg.surface_normal,
             normal_axis=cfg.normal_axis,
             enable_imag_mode_check=cfg.imag_mode_check,

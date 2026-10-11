@@ -1,0 +1,1 @@
+Reference sources copied byte-for-byte from f1c240fb7e26d75ea9d987c81f9f9e498f397995: handlers/context.py and handlers/ts.py. manifest.json records SHA-256. These are test-only immutable comparison fixtures; update by adding a new explicitly reviewed baseline, not refreshing from HEAD.

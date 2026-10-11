@@ -9,6 +9,19 @@ import math
 from copy import deepcopy
 from ase.geometry import get_distances
 
+
+def _maybe_view(stru, show):
+    """Opt-in Voronoi viewer.
+
+    2026-09-21: `ase.visualize.view()` spawns `python -m ase gui -`.  Every code
+    path that builds a SlabSite with ``show=True`` (pipeline, tests, campaigns)
+    used to spawn a viewer: with DISPLAY set it pops windows, without DISPLAY it
+    still forks a doomed GUI process per call (invisible in logs).  The viewer is
+    therefore strictly opt-in via ``SLABSITE_SHOW_VORONOI=1``.
+    """
+    if show and os.environ.get("SLABSITE_SHOW_VORONOI") == "1":
+        view(stru)
+
 def _is_point_in_parallelepiped(p, a, b, c, origin=np.array([0, 0, 0])):
     """
     判断一个点是否处于由三个向量组成的六面体内。
@@ -142,8 +155,7 @@ class SlabSite():
 
         self.sites = sites
 
-        if show:
-            view(stru)
+        _maybe_view(stru, show)
 
     def filter_sites_near(self, threshold=0.6):
         sites = self.sites
@@ -419,4 +431,3 @@ if __name__ == "__main__":
 
     # slab.find_pairs(radius=1.5)
     # slab.show_pairs()
-

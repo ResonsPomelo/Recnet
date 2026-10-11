@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -56,6 +57,25 @@ def validate_wheel_members(names: set[str]) -> None:
 def run(command, cwd, env):
     print("+", " ".join(map(str, command)), flush=True)
     subprocess.run(list(map(str, command)), cwd=cwd, env=env, check=True, timeout=180)
+
+
+def stage_source(destination: Path) -> Path:
+    """Build from a fresh source snapshot, excluding prior setuptools output."""
+    source = destination / "source"
+    def ignored(directory, names):
+        excluded = {name for name in names if name in {"__pycache__", ".pytest_cache", ".ruff_cache"}
+                    or name.endswith(".pyc")}
+        if Path(directory).resolve() == ROOT.resolve():
+            excluded.update(name for name in names if name in {".git", "build", "dist"}
+                            or name.endswith(".egg-info"))
+        return excluded
+
+    shutil.copytree(
+        ROOT,
+        source,
+        ignore=ignored,
+    )
+    return source
 
 
 def make_probe_env(interpreter, directory: Path, scratch: Path, env: dict, dependencies):
@@ -111,6 +131,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="recnet-model-install-") as directory:
         scratch = Path(directory)
         wheel_dir = scratch / "wheels"
+        source = stage_source(scratch)
         run(
             [
                 sys.executable,
@@ -122,7 +143,7 @@ def main() -> int:
                 "--no-index",
                 "--wheel-dir",
                 wheel_dir,
-                ROOT,
+                source,
             ],
             scratch,
             env,

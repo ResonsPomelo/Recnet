@@ -42,6 +42,7 @@ class WorkflowConfig:
     thermo_corrections: bool
     gas_species_whitelist: list[str] | None
     gas_pressure_pa: float
+    ts_seed: bool = True
 
 
 def parse_surface_normal(text):
@@ -192,6 +193,18 @@ def build_arg_parser():
     parser.add_argument("--enum-ads", action="store_true", help="Enable azimuthal rotation enumeration for adsorption guesses")
     parser.add_argument("--enum-ts", dest="enum_ts", action="store_true", help="Enable azimuthal rotation enumeration for TS guesses")
     parser.add_argument("--no-enum-ts", dest="enum_ts", action="store_false", help="Disable azimuthal rotation enumeration for TS guesses")
+    parser.add_argument(
+        "--ts-seed",
+        dest="ts_seed",
+        action="store_true",
+        help="Use per-site TS seed files under <case>/rxn/seeds/ when present (default: enabled)",
+    )
+    parser.add_argument(
+        "--no-ts-seed",
+        dest="ts_seed",
+        action="store_false",
+        help="Disable per-site TS seeds; always build TS guesses from the adsorbate templates",
+    )
     parser.add_argument("--surface-normal", default="0,0,1", help="Surface normal vector, e.g. '0,0,1'")
     parser.add_argument("--normal-axis", choices=["x", "y", "z"], default='z', help="Optional normal axis for SlabSite; inferred from surface normal if omitted")
     parser.add_argument("--bottom-freeze-threshold", type=float, default=None, help="Freeze atoms with coordinate below this threshold along normal axis")
@@ -266,6 +279,7 @@ def build_arg_parser():
     )
 
     parser.set_defaults(enum_ts=True)
+    parser.set_defaults(ts_seed=True)
     parser.set_defaults(imag_mode_check=True)
     parser.set_defaults(use_c_vacancy_io=False)
     parser.set_defaults(run_irc_final_state=False)
@@ -282,6 +296,7 @@ def config_from_args(args):
         top_x=args.top_x,
         enum_ads=args.enum_ads,
         enum_ts=args.enum_ts,
+        ts_seed=args.ts_seed,
         surface_normal=parse_surface_normal(args.surface_normal),
         normal_axis=args.normal_axis,
         imag_mode_check=args.imag_mode_check,
