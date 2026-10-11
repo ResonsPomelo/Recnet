@@ -17,9 +17,9 @@ from deepmd.calculator import DP
 from ccqn import CCQN
 
 from .context import WorkflowContext, MODEL
-from ..utils import config as cfgmod
-from ..utils import geometry as geom
-from ..utils import constraints as constraint_utils
+from utils import config as cfgmod
+from utils import geometry as geom
+from utils import constraints as constraint_utils
 
 
 class TSHandler:

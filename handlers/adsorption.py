@@ -10,7 +10,7 @@ import ase
 
 from deepmd.calculator import DP
 from .context import WorkflowContext, MODEL
-from ..utils import constraints as constraint_utils
+from utils import constraints as constraint_utils
 
 
 class AdsorptionHandler:
@@ -242,7 +242,7 @@ class AdsorptionHandler:
         site_bond_params_list, center_bond_params_list,
         atom_bond_params_list=None,
     ):
-        from ..utils import geometry as geom
+        from utils import geometry as geom
         ctx = self.ctx
 
         best_stru = base_stru

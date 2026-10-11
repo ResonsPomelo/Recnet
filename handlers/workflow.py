@@ -4,10 +4,10 @@ DPWorkflow — orchestrator that delegates each stage to the appropriate handler
 from __future__ import annotations
 
 from .context import WorkflowContext
-from ..utils import adsorption
-from ..utils import ts
-from ..utils import irc
-from ..utils import energy
+from . import adsorption
+from . import ts
+from . import irc
+from . import energy
 
 
 class DPWorkflow:

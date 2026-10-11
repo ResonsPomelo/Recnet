@@ -15,8 +15,8 @@ from ase.io import read
 
 from slabsite import SlabSite
 
-from ..utils import config as cfgmod
-from ..utils import geometry as geom
+from utils import config as cfgmod
+from utils import geometry as geom
 
 MODEL = "/data/home/youyinglong/model/dpa230-v2-simp/FeCHO-dpa231-v2-7-3heads-100w.pth"
 
