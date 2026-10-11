@@ -1,7 +1,7 @@
-"""Core and explicit model-input wheel/editable installation gate.
+"""Core, model-input and builder wheel/editable installation gate.
 
 Builds the wheel from this worktree, asserts every supported source member is
-shipped and that the wheel excludes builder, tools and historical scripts, then
+shipped and that the wheel excludes tools and historical scripts, then
 probes wheel and editable installs in throwaway venvs. Dependency directories
 come from the selected interpreter, without executing parent editable hooks.
 This checks installed package behavior, not fresh dependency resolution or
@@ -20,7 +20,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
-PACKAGES = ("handlers", "ccqn", "utils", "recnet_backend", "recnet_adapter")
+PACKAGES = ("handlers", "ccqn", "utils", "recnet_backend", "recnet_adapter", "network_builder")
 PY_MODULES = ("run_dp_ts.py", "slabsite.py")
 PACKAGE_DATA = {"recnet_adapter/model_config.json"}
 EXCLUDED_PARTS = {"tests", "tools", "sai", "evidence", "__pycache__"}
@@ -90,6 +90,10 @@ def main() -> int:
     parser.add_argument(
         "--pipeline-python",
         help="Also probe installed pipeline imports in this environment",
+    )
+    parser.add_argument(
+        "--builder-python", default=sys.executable,
+        help="Interpreter providing RDKit for installed builder execution",
     )
     args = parser.parse_args()
     env = dict(os.environ)
@@ -198,7 +202,48 @@ def main() -> int:
                 "print('PASS pipeline imports (no model execution)')"
             )
             run([python, "-c", probe], scratch, env)
-    print("PASS core/model-input package smoke")
+
+        builder_venv = scratch / "builder"
+        builder_python = make_probe_env(args.builder_python, builder_venv, scratch, env,
+                                        ["ase", "numpy", "rdkit", "yaml"])
+        run([builder_python, "-m", "pip", "install", "--ignore-installed", "--no-deps",
+             "--no-index", wheel], scratch, env)
+        builder_probe = (
+            "from pathlib import Path; import sys; "
+            "import network_builder, network_builder.cli as cli; "
+            f"root=Path({str(builder_venv)!r}).resolve(); "
+            "assert all(Path(mod.__file__).resolve().is_relative_to(root) "
+            "for mod in (network_builder, cli)); "
+            "assert not any(n.split('.')[0] in {'recnet_adapter', 'recnet_backend'} "
+            "for n in sys.modules); "
+            "print('PASS installed builder paths and boundaries')"
+        )
+        run([builder_python, "-c", builder_probe], scratch, env)
+
+        builder_help = scratch / "builder-help"
+        builder_help.mkdir()
+        result = subprocess.run([str(builder_python), "-m", "network_builder.cli", "--help"],
+                                cwd=builder_help, env=env, capture_output=True, text=True, timeout=60)
+        if result.returncode or "usage:" not in result.stdout.lower() or list(builder_help.iterdir()):
+            raise RuntimeError(f"Installed builder help failed: {result.stdout} {result.stderr}")
+        print("PASS installed builder help without outputs", flush=True)
+
+        builder_run = scratch / "builder-run"
+        builder_run.mkdir()
+        run([builder_python, "-m", "network_builder.cli"], builder_run, env)
+        output = builder_run / "network_inputs"
+        manifest_path = output / "MANIFEST.json"
+        yaml_path = output / "fe5c2_510_c2.prepared_rmg_data.yaml"
+        if not (manifest_path.is_file() and yaml_path.is_file()):
+            raise RuntimeError("Installed builder did not create the expected dataset")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        count = manifest["counts"]["rxns"]
+        bond_check = manifest["checks"]["broken_bond_visible_to_pipeline"]
+        if (count <= 0 or bond_check["checked"] != count or bond_check["failures"]
+                or not Path(bond_check["source"]).resolve().is_relative_to(builder_venv.resolve())):
+            raise RuntimeError("Installed builder did not use installed core geometry")
+        print(f"PASS installed builder generated {count} checked channels outside source", flush=True)
+    print("PASS core/model-input/builder package smoke")
     return 0
 
 

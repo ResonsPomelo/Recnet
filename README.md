@@ -1,9 +1,9 @@
-# Recnet model-input engineering candidate
+# Recnet model-input and builder candidate
 
 This candidate packages the upstream reaction-network core with a neutral model
 boundary (`recnet_backend`) and a small CLI adapter (`recnet_adapter`). Its
-scientific workflow remains the core from the PR-1 import fix. It contains no
-network builder, campaign tools, SAI workflow, private checkpoints, or run
+scientific workflow remains the core from the PR-1 import fix. It also includes
+the validated `network_builder` tree. It contains no campaign tools, SAI workflow, private checkpoints, or run
 evidence. The distribution name `recnet` and version `0.0.1` are provisional
 review metadata and are not a published release.
 
@@ -12,18 +12,20 @@ review metadata and are not a published release.
 Use an environment with the scientific dependencies selected for your work:
 
 ```bash
-python -m pip install -e '.[dev]'
+python -m pip install -e '.[builder,dev]'
 make check PYTHON=python PIPELINE_PYTHON=python
 python -m run_dp_ts --help
 python -m recnet_adapter --help
+python -m network_builder.cli --help
 ```
 
 Base installation declares ASE, NumPy, SciPy, PyYAML, Sella, and DeepMD's
 PyTorch backend because the workflow imports them. `core` and `pipeline` are
 empty compatibility extras. The `dev` extra provides pytest
 and ruff. Build/install probes additionally need pip, setuptools, and wheel.
+The `builder` extra adds RDKit; ASE, NumPy and PyYAML are base dependencies.
 
-`make check` runs correctness lint, model-boundary and package-boundary tests, and actual wheel and
+`make check` runs correctness lint, model-boundary, builder and package-boundary tests, and actual wheel and
 editable installation probes. The model tests use tiny synthetic CPU DeepMD
 checkpoints to compare energy and forces against the native calculator; they
 do not run a reaction search. The install probes run outside the source tree,
@@ -81,3 +83,20 @@ Do not co-install this distribution with the monolithic
 `recnet-ft2dp-adapter` fork distribution: they contain overlapping modules.
 Installed imports and CPU model parity do not establish GPU inference,
 transition-state convergence, or scientific-result validity.
+
+## Builder layer
+
+The `network_builder` source matches the validated local fork snapshot. It
+generates the Fe₅C₂(510) C2-and-below prepared dataset; its species seed and
+expansion tables are project-specific. Default output is relative to the
+invocation directory:
+
+```bash
+python -m network_builder.cli --out-dir ./network_inputs
+```
+
+The installed builder probe runs the generator outside the source tree and
+checks its use of the installed core geometry. Two builder tests skip when
+historical `network_inputs` audit snapshots are absent. With separate
+scientific and RDKit environments, pass `BUILDER_PYTHON=/path/to/recnet-prep/python`
+to `make check`.

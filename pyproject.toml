@@ -1,4 +1,4 @@
-# Recnet core and explicit model-input candidate; builder and tools excluded.
+# Recnet core, explicit model inputs and builder candidate; tools excluded.
 # 分发名与版本为占位：上游尚无分发元数据，PR 讨论时可再定。
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -15,6 +15,7 @@ dependencies = ["ase", "numpy", "scipy", "PyYAML", "sella", "deepmd-kit[torch]>=
 [project.optional-dependencies]
 core = [] # compatibility alias; base installation includes the workflow dependencies
 pipeline = [] # compatibility alias
+builder = ["rdkit"]
 dev = ["pytest>=7", "ruff>=0.9"]
 
 [tool.setuptools]
@@ -22,13 +23,13 @@ py-modules = ["run_dp_ts", "slabsite"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["handlers", "ccqn", "ccqn.*", "utils", "recnet_backend", "recnet_adapter"]
+include = ["handlers", "ccqn", "ccqn.*", "utils", "recnet_backend", "recnet_adapter", "network_builder"]
 
 [tool.setuptools.package-data]
 recnet_adapter = ["model_config.json"]
 
 [tool.pytest.ini_options]
-testpaths = ["recnet_backend/tests", "recnet_adapter/tests", "scripts/tests"]
+testpaths = ["recnet_backend/tests", "recnet_adapter/tests", "network_builder/tests", "scripts/tests"]
 addopts = "-ra"
 
 [tool.ruff]

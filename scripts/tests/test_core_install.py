@@ -13,7 +13,7 @@ SPEC.loader.exec_module(gate)
 
 
 @pytest.mark.parametrize("missing", ["handlers/context.py", "recnet_backend/calculator.py",
-                                      "recnet_adapter/model_config.json"])
+                                      "recnet_adapter/model_config.json", "network_builder/build.py"])
 def test_wheel_members_reject_missing_core_file(missing):
     names = gate.expected_members() | {"recnet-0.0.1.dist-info/METADATA"}
     gate.validate_wheel_members(names)
@@ -22,10 +22,11 @@ def test_wheel_members_reject_missing_core_file(missing):
         gate.validate_wheel_members(names)
 
 
-@pytest.mark.parametrize("payload", ["network_builder/__init__.py", "tools/prepare.py",
+@pytest.mark.parametrize("payload", ["tools/prepare.py",
                                        "recnet_adapter/tools/campaign.py",
                                        "recnet_adapter/runtime_config.py",
-                                       "graph_generator.py", "evil.dist-info/METADATA"])
+                                       "network_builder/tests/leak.py", "graph_generator.py",
+                                       "evil.dist-info/METADATA"])
 def test_wheel_members_reject_noncore_payload(payload):
     names = gate.expected_members() | {"recnet-0.0.1.dist-info/METADATA", payload}
     with pytest.raises(RuntimeError, match="Unexpected wheel members"):
