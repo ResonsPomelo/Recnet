@@ -1,0 +1,48 @@
+name: CPU quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpu-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CUDA_VISIBLE_DEVICES: ""
+      MPLBACKEND: Agg
+      PYTHONNOUSERSITE: "1"
+      OMP_NUM_THREADS: "1"
+      DP_INTRA_OP_PARALLELISM_THREADS: "1"
+      DP_INTER_OP_PARALLELISM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            ci/constraints-cpu.txt
+      - name: Install CPU test dependencies
+        run: |
+          python -m pip install --upgrade -c ci/constraints-cpu.txt pip setuptools wheel
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu -c ci/constraints-cpu.txt torch
+          python -m pip install -c ci/constraints-cpu.txt -e '.[builder,pipeline,dev]'
+          python -m pip check
+      - name: Confirm CPU backend and dependency versions
+        run: |
+          python -c "import torch; assert torch.version.cuda is None, torch.__version__; print(torch.__version__)"
+          python -m pip freeze
+      - name: Tests, correctness lint and CLI help
+        run: make check PYTHON=python

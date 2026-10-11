@@ -8,3 +8,11 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+# Supported shell assets and generated project outputs.
+!recnet_adapter/tools/finalize_network.sh
+!recnet_adapter/sai/runtime.sh
+network_inputs/
+recnet_adapter/sai/slurm-*.out
+recnet_adapter/sai/slurm-*.err
+recnet_adapter/tools/*.bak-*

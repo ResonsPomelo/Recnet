@@ -1,36 +1,33 @@
-"""The packaging gate must reject missing core files and fork payloads."""
-from __future__ import annotations
-
 import importlib.util
 from pathlib import Path
-
 import pytest
 
-GATE = Path(__file__).resolve().parents[1] / "check_core_install.py"
-SPEC = importlib.util.spec_from_file_location("check_core_install", GATE)
-gate = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(gate)
+spec = importlib.util.spec_from_file_location("install_gate", Path(__file__).parents[1] / "check_core_install.py")
+gate = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gate)
 
-
-@pytest.mark.parametrize("missing", ["handlers/context.py", "recnet_backend/calculator.py",
-                                      "recnet_adapter/model_config.json", "network_builder/build.py"])
-def test_wheel_members_reject_missing_core_file(missing):
-    names = gate.expected_members() | {"recnet-0.0.1.dist-info/METADATA"}
-    gate.validate_wheel_members(names)
-    names.remove(missing)
-    with pytest.raises(RuntimeError, match="Missing wheel members"):
-        gate.validate_wheel_members(names)
-
-
-@pytest.mark.parametrize("payload", ["tools/prepare.py",
-                                       "recnet_adapter/tools/campaign.py",
-                                       "recnet_adapter/runtime_config.py",
-                                       "network_builder/tests/leak.py", "graph_generator.py",
-                                       "evil.dist-info/METADATA"])
-def test_wheel_members_reject_noncore_payload(payload):
-    names = gate.expected_members() | {"recnet-0.0.1.dist-info/METADATA", payload}
+@pytest.mark.parametrize("payload", ["tests/test_leak.py", "graph_generator.py", "prepare_rmg_data.py", "submit.sh", "recnet_adapter.py", "recnet_adapter/tests/leak.py", "recnet_adapter/tools/leak.py", "recnet_adapter/sai/run.sh", "evil.dist-info/METADATA"])
+def test_rejects_unexpected_wheel_payload(payload):
     with pytest.raises(RuntimeError, match="Unexpected wheel members"):
-        gate.validate_wheel_members(names)
+        gate.validate_members(gate.expected_members() | {payload})
+
+@pytest.mark.parametrize("member", sorted(gate.expected_members()))
+def test_rejects_each_missing_source_member(member):
+    with pytest.raises(RuntimeError, match="Missing wheel members"):
+        gate.validate_members(gate.expected_members() - {member})
+
+def test_accepts_current_runtime_tree_and_metadata():
+    gate.validate_members(gate.expected_members() | {"recnet-0.0.1.dist-info/METADATA"})
+    assert "recnet_adapter/runtime_config.py" in gate.expected_members()
+    assert not any("/tests/" in path for path in gate.expected_members())
+
+def test_new_runtime_source_requires_wheel_member(tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "ROOT", tmp_path)
+    (tmp_path / "handlers").mkdir()
+    (tmp_path / "handlers" / "new_runtime.py").write_text("pass")
+    assert "handlers/new_runtime.py" in gate.expected_members()
+    with pytest.raises(RuntimeError, match="new_runtime"):
+        gate.validate_members(set(gate.PY_MODULES) | {"recnet_adapter/model_config.json", "recnet_adapter/tools/finalize_network.sh"})
 
 
 def test_source_stage_excludes_prior_build_and_keeps_current_source(tmp_path, monkeypatch):

@@ -1,105 +1,93 @@
-# Recnet model-input and builder candidate
+# Recnet
 
-This candidate packages the upstream reaction-network core with a neutral model
-boundary (`recnet_backend`) and a small CLI adapter (`recnet_adapter`). Its
-scientific workflow includes explicit GUI opt-in, per-site TS seed input,
-bond-projection gate overrides and dissociated-site TS backups. It also includes
-the validated `network_builder` tree. It contains no campaign tools, SAI workflow, private checkpoints, or run
-evidence. The distribution name `recnet` and version `0.0.1` are provisional
-review metadata and are not a published release.
+Recnet builds and analyzes reaction networks and runs atomistic adsorption/TS
+workflows through DeepMD. This engineering branch combines the scientific core,
+explicit model inputs, network builder and compatible research tools. Distribution
+name `recnet` and version `0.0.1` are provisional; this is not a published release.
 
-## Install and check
-
-Use an environment with the scientific dependencies selected for your work:
+## Install and verify
 
 ```bash
 python -m pip install -e '.[builder,dev]'
-make check PYTHON=python PIPELINE_PYTHON=python
-python -m run_dp_ts --help
+make check PYTHON=python
 python -m recnet_adapter --help
 python -m network_builder.cli --help
 ```
 
-Base installation declares ASE, NumPy, SciPy, PyYAML, Sella, and DeepMD's
-PyTorch backend because the workflow imports them. `core` and `pipeline` are
-empty compatibility extras. The `dev` extra provides pytest
-and ruff. Build/install probes additionally need pip, setuptools, and wheel.
-The `builder` extra adds RDKit; ASE, NumPy and PyYAML are base dependencies.
+Base runtime dependencies are ASE, NumPy, SciPy, PyYAML, Sella and DeepMD's PyTorch
+backend. `builder` adds RDKit; `surface` adds optional pymatgen; `dev` adds pytest
+and ruff. `core` and `pipeline` remain compatibility extras. Existing separate
+environments work with `PIPELINE_PYTHON` (or `ADAPTER_PYTHON`) and `BUILDER_PYTHON`.
+The selected interpreters need their relevant scientific dependencies installed.
+Build/install checks also need pip, setuptools and wheel.
 
-`make check` runs correctness lint, model-boundary, scientific workflow, builder
-and package-boundary tests, plus actual wheel and
-editable installation probes. The model tests use tiny synthetic CPU DeepMD
-checkpoints to compare energy and forces against the native calculator; they
-do not run a reaction search. The install probes run outside the source tree,
-verify package origins and compatibility import aliases, and check CLI help
-and missing-model rejection without creating outputs. They use isolated
-venvs with third-party packages from the selected interpreter and clear model
-selection variables only in probe subprocesses.
+`make check` runs correctness lint, scientific-interface/tool tests, wheel payload
+controls, explicit CLI help inventory, and source-external wheel/editable probes.
+It verifies selected dependency origins, aliases, missing-model refusal and actual
+builder generation through installed core geometry. `make package-smoke` aliases
+the installation gate. See [CPU CI](ci/README.md) for the tested environment.
+Local execution does not establish a hosted GitHub Actions result.
 
-## Model and head inputs
-
-The workflow requires a model path from `--model`, `RECNET_DP_MODEL`, or an
-explicitly selected JSON file. Select a project JSON with `--project-config`
-or `RECNET_PROJECT_CONFIG`; `RECNET_MODEL_CONFIG` selects a model-only JSON.
-An example project file is:
-
-```json
-{
-  "root": "/path/to/workspace",
-  "model": "models/example.pt",
-  "head": "science"
-}
-```
-
-Relative model paths in a project file resolve from its `root`; if `root` is
-omitted, the project file's directory is used. A model-only JSON resolves
-relative paths from its own directory. The packaged `model_config.json` has
-no model or head selection. The repository contains no default project
-checkpoint, head, or FT2DP/S/M assignment.
+## Model and project input
 
 ```bash
-python -m run_dp_ts --model /path/to/model.pt --head science \
-  --path /path/to/case --slab /path/to/slab --prepared /path/to/prepared.yaml
 python -m recnet_adapter run --model /path/to/model.pt --head science \
   --path /path/to/case --slab /path/to/slab --prepared /path/to/prepared.yaml
 ```
 
-For a multi-head model, `--head` must name a branch or alias. Even the
-`Default` branch must be selected explicitly. `none` clears the selection and
-is rejected for a multi-head model. A single-head model follows DeepMD's
-native invocation without injecting a head. The same contract applies to
-`HarmonicallyForcedDP` and to direct calls through `recnet_backend.calculator.DP`.
-The legacy `recnet_adapter/run_dp_ts_ft2dp.py` path remains an entrypoint name;
-it does not select an FT2DP model or head.
+Select a model using CLI, `RECNET_DP_MODEL`, or an explicitly chosen project JSON
+(`--project-config` / `RECNET_PROJECT_CONFIG`). `RECNET_MODEL_CONFIG` selects a
+model-only JSON. Packaged configuration contains no checkpoint or head.
 
-## Scope
-
-The scientific changes add explicit viewer opt-in, deterministic TS seed
-selection with normalized cell constraints, a caller-selected bond-projection
-gate, and a fallback path from dissociated adsorption sites into TS search.
-Campaign tools, SAI deployment and historical run data remain outside this
-candidate. Legacy `prepare_rmg_data.py` and `graph_generator.py` require
-additional RMG dependencies and remain source-only utilities. No new console
-script is introduced.
-
-Do not co-install this distribution with the monolithic
-`recnet-ft2dp-adapter` fork distribution: they contain overlapping modules.
-Installed imports and CPU model parity do not establish GPU inference,
-transition-state convergence, or scientific-result validity.
-
-## Builder layer
-
-The `network_builder` source matches the validated local fork snapshot. It
-generates the Fe₅C₂(510) C2-and-below prepared dataset; its species seed and
-expansion tables are project-specific. Default output is relative to the
-invocation directory:
-
-```bash
-python -m network_builder.cli --out-dir ./network_inputs
+```json
+{"root": "/path/to/project", "model": "models/model.pt", "head": "science"}
 ```
 
-The installed builder probe runs the generator outside the source tree and
-checks its use of the installed core geometry. Two builder tests skip when
-historical `network_inputs` audit snapshots are absent. With separate
-scientific and RDKit environments, pass `BUILDER_PYTHON=/path/to/recnet-prep/python`
-to `make check`.
+Relative project model paths resolve from `root`, or from the project file's
+directory when root is omitted. Model-only JSON paths resolve from its directory.
+Multi-head models require an explicit valid branch or alias, including `Default`;
+`none` is not a multi-head selection. Single-head models use native DeepMD calls
+without injecting a head. S/M labels, when explicitly configured for campaign
+tools, are user aliases and never automatic model/head choices.
+
+## Architecture and compatibility
+
+- `handlers`, `ccqn`, `utils`: scientific workflow, depending on `recnet_backend`.
+- `recnet_backend`: model metadata, validation and native DeepMD calculator.
+- `recnet_adapter`: CLI/configuration and orchestration; old calculator imports
+  share module identity with the backend.
+- `network_builder`: network generation; output defaults to invocation-directory
+  `network_inputs`, never the installation directory.
+- `recnet_adapter/tools`: campaign, network, report, DFT, surface and wave tools.
+  Original script/module names remain wrappers around the grouped implementations.
+
+Fe5C2 seed tables, expansion rules, C2 closure judgments and literature mappings
+remain project-specific scientific inputs/compatibility tools. Their presence
+is not a claim of arbitrary-chemistry support. See [architecture](docs/architecture.md).
+Do not co-install this distribution with `recnet-ft2dp-adapter`: modules overlap.
+Historical `prepare_rmg_data.py` and `graph_generator.py` remain source-only RMG
+utilities with additional dependencies. The original untracked check_cases_tsv
+script is not a supported CLI; campaign execution uses its validated input parser.
+
+## TS inputs and behavior
+
+Matching `<case>/rxn/seeds/` files are used by default; `--no-ts-seed` restores
+ordinary template guesses. Vacancy-group filenames take precedence. Invalid
+atom count, element order or unreadable seeds log a reason and fall back. Valid
+seeds supply complete geometry, skip orientation enumeration and use the actual
+optimizer cell/PBC for the reactive-bond restraint. `seed override: <path>` is
+logged. Reproduce old seed-free runs with `--no-ts-seed` or a fixed seed-free case.
+A seed does not force a site to be visited by the search order.
+
+The primary-mode bond-projection threshold defaults to 0.16. Explicit
+`RECNET_TS_MIN_BOND_PROJ` must be finite and in `(0, 1]`; invalid input fails.
+Every new attempt records the selected value with round-trip precision. Equal
+projection passes this gate, subject to the other independent checks. Project
+choices such as 0.30 are not universal defaults. Dissociated adsorption sites
+are retained as ordered TS backups; existing all-failed fallback semantics remain.
+
+Voronoi viewing requires both `show=True` and `SLABSITE_SHOW_VORONOI=1`. Tests use
+viewer substitutes. Scientific verification uses synthetic CPU models and fake
+optimizers where indicated; it does not establish production GPU convergence or
+change archived scientific conclusions. The process-global install operation
+supports sequential switching, not concurrent model-context isolation.
