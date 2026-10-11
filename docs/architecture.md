@@ -14,7 +14,8 @@ or an S/M label. Job accounts and resources belong to explicit deployment inputs
 
 Historical Fe5C2 data and wave/report rules remain named project compatibility
 features. Generalizing their scientific meaning is not accomplished by moving
-files or changing a title. Tests, evidence and private project data are excluded from the wheel.
+files or changing a title. SAI templates are distributed as source deployment
+assets; tests/evidence and private project data are excluded from the wheel.
 The finalizer shell is explicitly packaged with its Python tool consumers.
 
 The installed builder must load geometry from the installed core and write into
@@ -24,5 +25,5 @@ with its campaign consumers and focused tests; it is not required by the backend
 
 Acceptance checks cover model/head semantics and CPU native parity, fixed PR-4
 seed references, gate decisions/provenance, dissociated-site routing, tool output
-and import compatibility and installed CLI behavior.
+and import compatibility, installed CLI behavior and local deployment simulations.
 Hosted CI and production job acceptance are separate external milestones.

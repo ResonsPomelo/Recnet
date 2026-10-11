@@ -60,6 +60,8 @@ tools, are user aliases and never automatic model/head choices.
   `network_inputs`, never the installation directory.
 - `recnet_adapter/tools`: campaign, network, report, DFT, surface and wave tools.
   Original script/module names remain wrappers around the grouped implementations.
+- `recnet_adapter/sai`: source-only deployment wrappers, examples and explicit
+  project inputs. See its README before submitting anything.
 
 Fe5C2 seed tables, expansion rules, C2 closure judgments and literature mappings
 remain project-specific scientific inputs/compatibility tools. Their presence
