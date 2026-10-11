@@ -1,0 +1,31 @@
+# Recnet core 工程基线（core-only 候选；不含 fork 专属的 recnet_adapter / network_builder）。
+# 分发名与版本为占位：上游尚无分发元数据，PR 讨论时可再定。
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recnet"
+version = "0.0.1"
+readme = "README.md"
+description = "Recnet core: reaction-network transition-state workflow (handlers/ccqn/utils)"
+requires-python = ">=3.10"
+dependencies = ["ase", "numpy", "scipy", "PyYAML", "sella", "deepmd-kit[torch]>=3.2.0b1.dev67"]
+
+[project.optional-dependencies]
+core = [] # compatibility alias; base installation includes the workflow dependencies
+pipeline = [] # compatibility alias
+dev = ["pytest>=7", "ruff>=0.9"]
+
+[tool.setuptools]
+py-modules = ["run_dp_ts", "slabsite"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["handlers", "ccqn", "ccqn.*", "utils"]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
